@@ -17,6 +17,7 @@
 | 014 | 014-OD-GUID-operator-workflow-guide.md | OD — Operations & Deployment | GUID | Operator workflow guide — add models, block columns, revoke keys, inspect audit logs |
 | 015 | 015-OD-OPNS-validation-demo.md | OD — Operations & Deployment | OPNS | Deployment validation demo — automated safety check script and expected results |
 | 016 | 016-AT-ADEC-capability-gate-integration-plan.md | AT — Architecture & Technical | ADEC | Capability gate integration plan — stub-to-real mapping, config, safety constraints, execution sequence |
+| 017 | 017-PP-PLAN-v2-tool-additions.md | PP — Product & Planning | PLAN | Planned v2 tool additions — 3 candidates with per-tool safety checklist, threat model matrix, prerequisites |
 
 ## Category Reference
 
