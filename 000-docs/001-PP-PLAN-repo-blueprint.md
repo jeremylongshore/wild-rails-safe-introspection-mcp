@@ -3,7 +3,7 @@
 **Document type:** Canonical repo blueprint
 **Filed as:** `001-PP-PLAN-repo-blueprint.md`
 **Repo:** `wild-rails-safe-introspection-mcp`
-**Status:** Active — blueprint/planning phase
+**Status:** Active — v1 complete (Epics 1-9 implemented and verified)
 **Last updated:** 2026-03-17
 
 ---

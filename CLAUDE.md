@@ -8,7 +8,7 @@ This file provides guidance to Claude Code when working in this repository.
 - **Ecosystem:** wild (see `../CLAUDE.md` for ecosystem-level rules)
 - **Mission:** Safe, governed, read-only Rails production introspection for AI agents via MCP
 - **Language:** Ruby
-- **Status:** Active development — Epic 7 (MCP Server) nearly complete (869.5 doc remaining), Epics 1-6 complete
+- **Status:** v1 complete — Epics 1-9 finished, three MCP tools shipped with full safety controls
 
 ## What This Repo Does
 
@@ -74,6 +74,14 @@ These are non-negotiable when working in this repo:
 | `000-docs/004-TQ-STND-blocked-resource-policy.md` | Policy file format spec — allowlist YAML, denylist YAML, precedence, validation |
 | `000-docs/005-AT-ADEC-threat-model.md` | 7 threats with mitigations and verification requirements |
 | `000-docs/006-AT-ADEC-safety-architecture-decisions.md` | 7 safety-driven architecture decisions with rationale |
+| `000-docs/008-AT-ADEC-identity-and-auth-model.md` | Identity and auth model — API key validation, RequestContext |
+| `000-docs/009-AT-ADEC-capability-gate-interface.md` | Capability gate interface contract — stub for v1 |
+| `000-docs/010-DR-REFF-tool-catalog.md` | v1 MCP tool catalog — schemas, safety classifications, response formats |
+| `000-docs/011-TQ-SECU-evaluation-strategy.md` | Evaluation strategy — release checklist, safety defect protocol |
+| `000-docs/012-OD-OPNS-operator-deployment-guide.md` | Install, configure, start, connect, verify safety controls |
+| `000-docs/013-DR-REFF-configuration-reference.md` | Every parameter, type, default, hard limit |
+| `000-docs/014-OD-GUID-operator-workflow-guide.md` | Add models, block columns, revoke keys, inspect audit logs |
+| `000-docs/015-OD-OPNS-validation-demo.md` | Automated safety validation script and expected results |
 
 ## Task Tracking
 
