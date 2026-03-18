@@ -4,18 +4,30 @@ module WildRailsSafeIntrospection
   module Server
     module ToolHandler
       def self.execute(action:, resource:, server_context:)
-        api_key = server_context&.dig(:api_key)
-        request_context = Identity::IdentityResolver.resolve(api_key: api_key)
-
-        unless Identity::CapabilityGate.permitted?(request_context, action: action, resource: resource)
-          denial = Identity::CapabilityGate.denial_response
-          audit_gate_denial(action, resource, request_context, denial)
-          return format_response(denial)
-        end
+        request_context = resolve_identity(server_context)
+        gate_denial = check_gate(request_context, action, resource)
+        return gate_denial if gate_denial
 
         guard_result = yield(request_context)
         format_response(guard_result)
+      rescue StandardError => e
+        format_response(status: :error, reason: :internal_error, message: e.message)
       end
+
+      def self.resolve_identity(server_context)
+        api_key = server_context.is_a?(Hash) ? server_context[:api_key] : nil
+        Identity::IdentityResolver.resolve(api_key: api_key)
+      end
+      private_class_method :resolve_identity
+
+      def self.check_gate(request_context, action, resource)
+        return nil if Identity::CapabilityGate.permitted?(request_context, action: action, resource: resource)
+
+        denial = Identity::CapabilityGate.denial_response
+        audit_gate_denial(action, resource, request_context, denial)
+        format_response(denial)
+      end
+      private_class_method :check_gate
 
       def self.format_response(result)
         error = %i[denied error].include?(result[:status])

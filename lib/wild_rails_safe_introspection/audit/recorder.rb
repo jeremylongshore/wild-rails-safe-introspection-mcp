@@ -3,14 +3,24 @@
 module WildRailsSafeIntrospection
   module Audit
     module Recorder
-      def self.record(tool_name:, model_name:, parameters:, request_context:)
+      def self.record(tool_name:, model_name:, parameters:, request_context:, &)
         start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-        result = yield
+        result = execute_with_rescue(&)
+      ensure
         duration_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000).round
-
-        emit_audit_record(tool_name, model_name, parameters, result, duration_ms, request_context)
-        result
+        emit_audit_record(
+          tool_name, model_name, parameters,
+          result || { status: :error, reason: :internal_error },
+          duration_ms, request_context
+        )
       end
+
+      def self.execute_with_rescue
+        yield
+      rescue StandardError => e
+        { status: :error, reason: :internal_error, error_message: e.message }
+      end
+      private_class_method :execute_with_rescue
 
       def self.build_audit_attrs(tool_name, model_name, parameters, result, duration_ms)
         {
@@ -18,6 +28,7 @@ module WildRailsSafeIntrospection
           parameters: ParameterSanitizer.sanitize(tool_name, model_name, parameters),
           guard_result: map_guard_result(result), outcome: map_outcome(result),
           duration_ms: duration_ms, rows_returned: count_rows(result),
+          truncated: result[:truncated] == true,
           error_message: result[:error_message]
         }
       end
