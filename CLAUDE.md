@@ -8,7 +8,7 @@ This file provides guidance to Claude Code when working in this repository.
 - **Ecosystem:** wild (see `../CLAUDE.md` for ecosystem-level rules)
 - **Mission:** Safe, governed, read-only Rails production introspection for AI agents via MCP
 - **Language:** Ruby
-- **Status:** v1 complete — Epics 1-9 finished, three MCP tools shipped with full safety controls
+- **Status:** v1 complete — all 10 epics finished, three MCP tools shipped with full safety controls, 20 canonical docs filed
 
 ## What This Repo Does
 
@@ -82,6 +82,11 @@ These are non-negotiable when working in this repo:
 | `000-docs/013-DR-REFF-configuration-reference.md` | Every parameter, type, default, hard limit |
 | `000-docs/014-OD-GUID-operator-workflow-guide.md` | Add models, block columns, revoke keys, inspect audit logs |
 | `000-docs/015-OD-OPNS-validation-demo.md` | Automated safety validation script and expected results |
+| `000-docs/016-AT-ADEC-capability-gate-integration-plan.md` | Capability gate integration plan — stub-to-real mapping |
+| `000-docs/017-PP-PLAN-v2-tool-additions.md` | v2 tool candidates with per-tool safety checklists |
+| `000-docs/018-AT-ADEC-architecture-extension-points.md` | Where and how to add tools, policies, identity providers |
+| `000-docs/019-AT-ADEC-telemetry-emission-hook-interface.md` | Telemetry emission hook interface and privacy model |
+| `000-docs/020-PP-PLAN-confirmed-out-of-scope.md` | Canonical out-of-scope list — permanent, version, ecosystem |
 
 ## Task Tracking
 
