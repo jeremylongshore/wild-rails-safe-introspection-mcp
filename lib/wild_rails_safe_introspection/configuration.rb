@@ -9,13 +9,14 @@ module WildRailsSafeIntrospection
     HARD_TIMEOUT_CEILING_MS = 30_000
     MINIMUM_TIMEOUT_MS = 100
 
-    attr_accessor :access_policy_path, :blocked_resources_path, :audit_log_path
+    attr_accessor :access_policy_path, :blocked_resources_path, :audit_log_path, :api_keys
     attr_reader :defaults, :model_registry, :blocked_models, :blocked_columns
 
     def initialize
       @access_policy_path = nil
       @blocked_resources_path = nil
       @audit_log_path = nil
+      @api_keys = []
       @defaults = { 'max_rows' => 50, 'query_timeout_ms' => 5000 }
       @model_registry = {}
       @blocked_models = []

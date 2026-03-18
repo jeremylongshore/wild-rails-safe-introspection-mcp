@@ -7,6 +7,7 @@ RSpec.describe WildRailsSafeIntrospection::Audit::Recorder do
 
   let(:log_dir) { Dir.mktmpdir }
   let(:log_path) { File.join(log_dir, 'audit.jsonl') }
+  let(:ctx) { authenticated_context }
 
   let(:account) do
     Account.create!(
@@ -44,7 +45,7 @@ RSpec.describe WildRailsSafeIntrospection::Audit::Recorder do
 
   describe 'inspect_schema' do
     it 'produces an audit record with outcome=success for allowed model' do
-      WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('Account')
+      WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('Account', request_context: ctx)
 
       entry = last_audit_entry
       expect(entry['outcome']).to eq('success')
@@ -54,7 +55,7 @@ RSpec.describe WildRailsSafeIntrospection::Audit::Recorder do
     end
 
     it 'produces an audit record with outcome=denied for blocked model' do
-      WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('CreditCard')
+      WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('CreditCard', request_context: ctx)
 
       entry = last_audit_entry
       expect(entry['outcome']).to eq('denied')
@@ -62,7 +63,7 @@ RSpec.describe WildRailsSafeIntrospection::Audit::Recorder do
     end
 
     it 'produces an audit record with outcome=denied for unknown model' do
-      WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('FakeModel')
+      WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('FakeModel', request_context: ctx)
 
       entry = last_audit_entry
       expect(entry['outcome']).to eq('denied')
@@ -70,10 +71,10 @@ RSpec.describe WildRailsSafeIntrospection::Audit::Recorder do
     end
 
     it 'does not leak model existence in audit records' do
-      WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('CreditCard')
+      WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('CreditCard', request_context: ctx)
       blocked_entry = last_audit_entry
 
-      WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('FakeModel')
+      WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('FakeModel', request_context: ctx)
       unknown_entry = last_audit_entry
 
       expect(blocked_entry['outcome']).to eq(unknown_entry['outcome'])
@@ -84,7 +85,7 @@ RSpec.describe WildRailsSafeIntrospection::Audit::Recorder do
 
   describe 'find_by_id' do
     it 'produces an audit record with rows_returned=1 for found record' do
-      WildRailsSafeIntrospection::Guard::QueryGuard.find_by_id('Account', account.id)
+      WildRailsSafeIntrospection::Guard::QueryGuard.find_by_id('Account', account.id, request_context: ctx)
 
       entry = last_audit_entry
       expect(entry['outcome']).to eq('success')
@@ -94,7 +95,7 @@ RSpec.describe WildRailsSafeIntrospection::Audit::Recorder do
     end
 
     it 'produces an audit record with rows_returned=0 for not_found' do
-      WildRailsSafeIntrospection::Guard::QueryGuard.find_by_id('Account', 99_999)
+      WildRailsSafeIntrospection::Guard::QueryGuard.find_by_id('Account', 99_999, request_context: ctx)
 
       entry = last_audit_entry
       expect(entry['outcome']).to eq('success')
@@ -103,7 +104,7 @@ RSpec.describe WildRailsSafeIntrospection::Audit::Recorder do
     end
 
     it 'produces denial audit record for blocked model' do
-      WildRailsSafeIntrospection::Guard::QueryGuard.find_by_id('CreditCard', 1)
+      WildRailsSafeIntrospection::Guard::QueryGuard.find_by_id('CreditCard', 1, request_context: ctx)
 
       entry = last_audit_entry
       expect(entry['outcome']).to eq('denied')
@@ -111,7 +112,7 @@ RSpec.describe WildRailsSafeIntrospection::Audit::Recorder do
     end
 
     it 'includes id in sanitized parameters' do
-      WildRailsSafeIntrospection::Guard::QueryGuard.find_by_id('Account', account.id)
+      WildRailsSafeIntrospection::Guard::QueryGuard.find_by_id('Account', account.id, request_context: ctx)
 
       entry = last_audit_entry
       expect(entry['parameters']['fields']['id']).to eq(account.id)
@@ -120,7 +121,9 @@ RSpec.describe WildRailsSafeIntrospection::Audit::Recorder do
 
   describe 'find_by_filter' do
     it 'produces an audit record with correct row count' do
-      WildRailsSafeIntrospection::Guard::QueryGuard.find_by_filter('Account', field: 'slug', value: 'acme')
+      WildRailsSafeIntrospection::Guard::QueryGuard.find_by_filter(
+        'Account', field: 'slug', value: 'acme', request_context: ctx
+      )
 
       entry = last_audit_entry
       expect(entry['outcome']).to eq('success')
@@ -131,7 +134,7 @@ RSpec.describe WildRailsSafeIntrospection::Audit::Recorder do
 
     it 'produces denial audit record for blocked filter field' do
       WildRailsSafeIntrospection::Guard::QueryGuard.find_by_filter(
-        'Account', field: 'stripe_customer_id', value: 'cus_secret123'
+        'Account', field: 'stripe_customer_id', value: 'cus_secret123', request_context: ctx
       )
 
       entry = last_audit_entry
@@ -140,7 +143,7 @@ RSpec.describe WildRailsSafeIntrospection::Audit::Recorder do
 
     it 'redacts blocked column values in audit parameters' do
       WildRailsSafeIntrospection::Guard::QueryGuard.find_by_filter(
-        'Account', field: 'stripe_customer_id', value: 'cus_secret123'
+        'Account', field: 'stripe_customer_id', value: 'cus_secret123', request_context: ctx
       )
 
       entry = last_audit_entry
@@ -149,7 +152,9 @@ RSpec.describe WildRailsSafeIntrospection::Audit::Recorder do
     end
 
     it 'includes field and value for safe filter fields' do
-      WildRailsSafeIntrospection::Guard::QueryGuard.find_by_filter('Account', field: 'slug', value: 'acme')
+      WildRailsSafeIntrospection::Guard::QueryGuard.find_by_filter(
+        'Account', field: 'slug', value: 'acme', request_context: ctx
+      )
 
       entry = last_audit_entry
       expect(entry['parameters']['fields']['field']).to eq('slug')
@@ -157,16 +162,35 @@ RSpec.describe WildRailsSafeIntrospection::Audit::Recorder do
     end
   end
 
+  describe 'identity in audit records' do
+    it 'records authenticated caller identity' do
+      WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('Account', request_context: ctx)
+
+      entry = last_audit_entry
+      expect(entry['caller_id']).to eq('test-agent')
+      expect(entry['caller_type']).to eq('api_key')
+    end
+
+    it 'records anonymous identity for unauthenticated calls' do
+      anon_ctx = anonymous_context
+      WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('Account', request_context: anon_ctx)
+
+      entry = last_audit_entry
+      expect(entry['caller_id']).to eq('anonymous')
+      expect(entry['caller_type']).to eq('unknown')
+    end
+  end
+
   describe 'common audit record properties' do
     it 'populates duration_ms >= 0' do
-      WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('Account')
+      WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('Account', request_context: ctx)
 
       entry = last_audit_entry
       expect(entry['duration_ms']).to be >= 0
     end
 
     it 'includes all required fields in every audit record' do
-      WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('Account')
+      WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('Account', request_context: ctx)
 
       entry = last_audit_entry
       WildRailsSafeIntrospection::Audit::AuditRecord::FIELDS.each do |field|
@@ -175,29 +199,21 @@ RSpec.describe WildRailsSafeIntrospection::Audit::Recorder do
     end
 
     it 'includes server_version' do
-      WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('Account')
+      WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('Account', request_context: ctx)
 
       entry = last_audit_entry
       expect(entry['server_version']).to eq(WildRailsSafeIntrospection::VERSION)
     end
 
-    it 'includes placeholder identity fields' do
-      WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('Account')
-
-      entry = last_audit_entry
-      expect(entry['caller_id']).to eq('anonymous')
-      expect(entry['caller_type']).to eq('unknown')
-    end
-
     it 'returns the original guard result unchanged' do
-      result = WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('Account')
+      result = WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('Account', request_context: ctx)
 
       expect(result[:status]).to eq(:ok)
       expect(result[:columns]).to be_an(Array)
     end
 
     it 'returns the original denial result unchanged' do
-      result = WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('CreditCard')
+      result = WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('CreditCard', request_context: ctx)
 
       expect(result[:status]).to eq(:denied)
       expect(result[:reason]).to eq(:model_not_allowed)
@@ -206,49 +222,61 @@ RSpec.describe WildRailsSafeIntrospection::Audit::Recorder do
 
   describe 'every guard path produces exactly one audit record' do
     it 'inspect_schema success produces one record' do
-      WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('Account')
+      WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('Account', request_context: ctx)
       expect(audit_entries.size).to eq(1)
     end
 
     it 'inspect_schema denial produces one record' do
-      WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('CreditCard')
+      WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('CreditCard', request_context: ctx)
       expect(audit_entries.size).to eq(1)
     end
 
     it 'find_by_id success produces one record' do
-      WildRailsSafeIntrospection::Guard::QueryGuard.find_by_id('Account', account.id)
+      WildRailsSafeIntrospection::Guard::QueryGuard.find_by_id('Account', account.id, request_context: ctx)
       expect(audit_entries.size).to eq(1)
     end
 
     it 'find_by_id not_found produces one record' do
-      WildRailsSafeIntrospection::Guard::QueryGuard.find_by_id('Account', 99_999)
+      WildRailsSafeIntrospection::Guard::QueryGuard.find_by_id('Account', 99_999, request_context: ctx)
       expect(audit_entries.size).to eq(1)
     end
 
     it 'find_by_id denial produces one record' do
-      WildRailsSafeIntrospection::Guard::QueryGuard.find_by_id('CreditCard', 1)
+      WildRailsSafeIntrospection::Guard::QueryGuard.find_by_id('CreditCard', 1, request_context: ctx)
       expect(audit_entries.size).to eq(1)
     end
 
     it 'find_by_filter success produces one record' do
-      WildRailsSafeIntrospection::Guard::QueryGuard.find_by_filter('Account', field: 'slug', value: 'acme')
+      WildRailsSafeIntrospection::Guard::QueryGuard.find_by_filter(
+        'Account', field: 'slug', value: 'acme', request_context: ctx
+      )
       expect(audit_entries.size).to eq(1)
     end
 
     it 'find_by_filter denied field produces one record' do
-      WildRailsSafeIntrospection::Guard::QueryGuard.find_by_filter('Account', field: 'stripe_customer_id', value: 'x')
+      WildRailsSafeIntrospection::Guard::QueryGuard.find_by_filter(
+        'Account', field: 'stripe_customer_id', value: 'x', request_context: ctx
+      )
       expect(audit_entries.size).to eq(1)
     end
 
     it 'find_by_filter denied model produces one record' do
-      WildRailsSafeIntrospection::Guard::QueryGuard.find_by_filter('CreditCard', field: 'number', value: 'x')
+      WildRailsSafeIntrospection::Guard::QueryGuard.find_by_filter(
+        'CreditCard', field: 'number', value: 'x', request_context: ctx
+      )
+      expect(audit_entries.size).to eq(1)
+    end
+
+    it 'auth denial produces one record' do
+      anon_ctx = anonymous_context
+      WildRailsSafeIntrospection::Guard::QueryGuard.inspect_schema('Account', request_context: anon_ctx)
       expect(audit_entries.size).to eq(1)
     end
   end
 
   describe 'full record contents never logged' do
     it 'audit record does not contain actual record data' do
-      WildRailsSafeIntrospection::Guard::QueryGuard.find_by_id('Account', account.id)
+      WildRailsSafeIntrospection::Guard::QueryGuard.find_by_id('Account', account.id, request_context: ctx)
 
       raw = File.read(log_path)
       expect(raw).not_to include('Acme Corp')

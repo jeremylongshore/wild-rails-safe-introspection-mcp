@@ -15,6 +15,8 @@ require_relative 'wild_rails_safe_introspection/audit/audit_record'
 require_relative 'wild_rails_safe_introspection/audit/parameter_sanitizer'
 require_relative 'wild_rails_safe_introspection/audit/audit_logger'
 require_relative 'wild_rails_safe_introspection/audit/recorder'
+require_relative 'wild_rails_safe_introspection/identity/request_context'
+require_relative 'wild_rails_safe_introspection/identity/identity_resolver'
 require_relative 'wild_rails_safe_introspection/guard/query_guard'
 
 module WildRailsSafeIntrospection

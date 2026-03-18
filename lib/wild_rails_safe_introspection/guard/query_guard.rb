@@ -9,8 +9,18 @@ module WildRailsSafeIntrospection
         message: 'The requested model is not on the access allowlist.'
       }.freeze
 
-      def self.inspect_schema(model_name)
-        Audit::Recorder.record(tool_name: 'inspect_model_schema', model_name: model_name, parameters: {}) do
+      AUTH_DENIAL = {
+        status: :denied,
+        reason: :auth_required,
+        message: 'Authentication is required.'
+      }.freeze
+
+      def self.inspect_schema(model_name, request_context:) # rubocop:disable Metrics/MethodLength
+        recorder_opts = { tool_name: 'inspect_model_schema', model_name: model_name,
+                          parameters: {}, request_context: request_context }
+        Audit::Recorder.record(**recorder_opts) do
+          next AUTH_DENIAL unless request_context.authenticated?
+
           accessible = ColumnResolver.accessible_columns(model_name)
           next DENIAL_RESPONSE unless accessible
 
@@ -23,8 +33,12 @@ module WildRailsSafeIntrospection
         end
       end
 
-      def self.find_by_id(model_name, id)
-        Audit::Recorder.record(tool_name: 'lookup_record_by_id', model_name: model_name, parameters: { id: id }) do
+      def self.find_by_id(model_name, id, request_context:) # rubocop:disable Metrics/MethodLength
+        recorder_opts = { tool_name: 'lookup_record_by_id', model_name: model_name,
+                          parameters: { id: id }, request_context: request_context }
+        Audit::Recorder.record(**recorder_opts) do
+          next AUTH_DENIAL unless request_context.authenticated?
+
           accessible = ColumnResolver.accessible_columns(model_name)
           next DENIAL_RESPONSE unless accessible
 
@@ -37,11 +51,13 @@ module WildRailsSafeIntrospection
         end
       end
 
-      def self.find_by_filter(model_name, field:, value:) # rubocop:disable Metrics/MethodLength
+      def self.find_by_filter(model_name, field:, value:, request_context:) # rubocop:disable Metrics/MethodLength
         params = { field: field, value: value }
-        Audit::Recorder.record(
-          tool_name: 'find_records_by_filter', model_name: model_name, parameters: params
-        ) do
+        recorder_opts = { tool_name: 'find_records_by_filter', model_name: model_name,
+                          parameters: params, request_context: request_context }
+        Audit::Recorder.record(**recorder_opts) do
+          next AUTH_DENIAL unless request_context.authenticated?
+
           accessible = ColumnResolver.accessible_columns(model_name)
           next DENIAL_RESPONSE unless accessible
           next DENIAL_RESPONSE unless accessible.include?(field.to_s)
