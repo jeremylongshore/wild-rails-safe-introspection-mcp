@@ -12,6 +12,7 @@
 | 009 | 009-AT-ADEC-capability-gate-interface.md | AT — Architecture & Technical | ADEC | Capability gate interface contract — stub for v1, integration plan for wild-capability-gate |
 | 010 | 010-DR-REFF-tool-catalog.md | DR — Documentation & Reference | REFF | v1 MCP tool catalog — tool names, schemas, safety classifications, response formats |
 | 011 | 011-TQ-SECU-evaluation-strategy.md | TQ — Testing & Quality | SECU | Evaluation strategy — release checklist, safety defect protocol, test suite structure, when to re-evaluate |
+| 012 | 012-OD-OPNS-operator-deployment-guide.md | OD — Operations & Deployment | OPNS | Operator deployment guide — install, configure, start, connect, verify safety controls |
 
 ## Category Reference
 
@@ -32,4 +33,5 @@
 | ADEC | Architecture decision record |
 | STND | Standard / policy |
 | SECU | Security evaluation / protocol |
+| OPNS | Operations / deployment guide |
 | REFF | Reference document |
