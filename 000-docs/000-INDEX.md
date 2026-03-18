@@ -8,6 +8,9 @@
 | 004 | 004-TQ-STND-blocked-resource-policy.md | TQ — Testing & Quality | STND | Policy format spec — allowlist YAML, denylist YAML, precedence, validation, operator workflows |
 | 005 | 005-AT-ADEC-threat-model.md | AT — Architecture & Technical | ADEC | Threat model — 7 threats with mitigations, residual risks, and Epic 8 verification requirements |
 | 006 | 006-AT-ADEC-safety-architecture-decisions.md | AT — Architecture & Technical | ADEC | 7 safety-driven architecture decisions with context, rationale, and trade-off analysis |
+| 008 | 008-AT-ADEC-identity-and-auth-model.md | AT — Architecture & Technical | ADEC | Identity and auth model — API key validation, RequestContext, anonymous rejection, constant-time comparison |
+| 009 | 009-AT-ADEC-capability-gate-interface.md | AT — Architecture & Technical | ADEC | Capability gate interface contract — stub for v1, integration plan for wild-capability-gate |
+| 010 | 010-DR-REFF-tool-catalog.md | DR — Documentation & Reference | REFF | v1 MCP tool catalog — tool names, schemas, safety classifications, response formats |
 
 ## Category Reference
 
@@ -27,3 +30,4 @@
 | ARCH | Architecture document |
 | ADEC | Architecture decision record |
 | STND | Standard / policy |
+| REFF | Reference document |

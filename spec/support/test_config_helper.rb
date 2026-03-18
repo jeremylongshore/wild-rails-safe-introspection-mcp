@@ -23,4 +23,8 @@ module TestConfigHelper
   def anonymous_context
     WildRailsSafeIntrospection::Identity::RequestContext.anonymous
   end
+
+  def authenticated_server_context
+    { api_key: TEST_API_KEY }
+  end
 end
