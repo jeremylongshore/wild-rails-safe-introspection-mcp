@@ -13,6 +13,9 @@
 | 010 | 010-DR-REFF-tool-catalog.md | DR — Documentation & Reference | REFF | v1 MCP tool catalog — tool names, schemas, safety classifications, response formats |
 | 011 | 011-TQ-SECU-evaluation-strategy.md | TQ — Testing & Quality | SECU | Evaluation strategy — release checklist, safety defect protocol, test suite structure, when to re-evaluate |
 | 012 | 012-OD-OPNS-operator-deployment-guide.md | OD — Operations & Deployment | OPNS | Operator deployment guide — install, configure, start, connect, verify safety controls |
+| 013 | 013-DR-REFF-configuration-reference.md | DR — Documentation & Reference | REFF | Configuration reference — every parameter, type, default, hard limit, and safety warning |
+| 014 | 014-OD-GUID-operator-workflow-guide.md | OD — Operations & Deployment | GUID | Operator workflow guide — add models, block columns, revoke keys, inspect audit logs |
+| 015 | 015-OD-OPNS-validation-demo.md | OD — Operations & Deployment | OPNS | Deployment validation demo — automated safety check script and expected results |
 
 ## Category Reference
 
@@ -33,5 +36,6 @@
 | ADEC | Architecture decision record |
 | STND | Standard / policy |
 | SECU | Security evaluation / protocol |
+| GUID | Workflow / operator guide |
 | OPNS | Operations / deployment guide |
 | REFF | Reference document |
