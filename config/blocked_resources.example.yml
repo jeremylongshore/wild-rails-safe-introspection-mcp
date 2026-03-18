@@ -1,0 +1,35 @@
+# config/blocked_resources.yml
+#
+# Denylist — resources listed here are NEVER accessible, regardless of the allowlist.
+# The denylist always takes precedence.
+#
+# See 000-docs/004-TQ-STND-blocked-resource-policy.md for full format spec.
+
+version: 1
+
+blocked_models:
+  - CreditCard
+  - ApiKey
+  - SessionToken
+  - OauthAccessToken
+  - AuditLog
+
+blocked_columns:
+  # Columns blocked on specific models
+  - model: User
+    columns:
+      - password_digest
+      - encrypted_password
+      - otp_secret
+
+  - model: Account
+    columns:
+      - stripe_customer_id
+      - tax_id
+
+  # Columns blocked on ALL models (wildcard)
+  - model: "*"
+    columns:
+      - ssn
+      - credit_card_number
+      - encrypted_password

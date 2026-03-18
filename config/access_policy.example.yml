@@ -1,0 +1,32 @@
+# config/access_policy.yml
+#
+# Allowlist — which models and columns are accessible through introspection tools.
+# Models NOT listed here are refused — no exceptions.
+#
+# See 000-docs/004-TQ-STND-blocked-resource-policy.md for full format spec.
+
+version: 1
+
+defaults:
+  max_rows: 50                    # default per-query row cap (hard ceiling: 1000)
+  query_timeout_ms: 5000          # default per-query timeout in ms (hard ceiling: 30000)
+
+allowed_models:
+  # Expose all columns except those blocked by the denylist
+  - name: Account
+    columns: all_except_blocked
+    max_rows: 100                 # override default for this model
+
+  # Expose only explicitly listed columns (most restrictive)
+  - name: User
+    columns:
+      - id
+      - email
+      - name
+      - status
+      - created_at
+      - updated_at
+
+  # Expose all columns — use only for models with no sensitive data
+  - name: FeatureFlag
+    columns: all
