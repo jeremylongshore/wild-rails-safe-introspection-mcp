@@ -19,6 +19,7 @@
 | 016 | 016-AT-ADEC-capability-gate-integration-plan.md | AT — Architecture & Technical | ADEC | Capability gate integration plan — stub-to-real mapping, config, safety constraints, execution sequence |
 | 017 | 017-PP-PLAN-v2-tool-additions.md | PP — Product & Planning | PLAN | Planned v2 tool additions — 3 candidates with per-tool safety checklist, threat model matrix, prerequisites |
 | 018 | 018-AT-ADEC-architecture-extension-points.md | AT — Architecture & Technical | ADEC | Architecture extension points — where and how to add tools, policies, identity providers, audit backends |
+| 019 | 019-AT-ADEC-telemetry-emission-hook-interface.md | AT — Architecture & Technical | ADEC | Telemetry emission hook interface — event types, privacy model, emitter/backend contracts, integration timeline |
 
 ## Category Reference
 
