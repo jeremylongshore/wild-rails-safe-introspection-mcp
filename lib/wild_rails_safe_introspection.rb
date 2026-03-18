@@ -9,6 +9,9 @@ require_relative 'wild_rails_safe_introspection/adapter/schema_inspector'
 require_relative 'wild_rails_safe_introspection/adapter/connection_manager'
 require_relative 'wild_rails_safe_introspection/adapter/record_lookup'
 require_relative 'wild_rails_safe_introspection/adapter/filtered_lookup'
+require_relative 'wild_rails_safe_introspection/guard/column_resolver'
+require_relative 'wild_rails_safe_introspection/guard/result_filter'
+require_relative 'wild_rails_safe_introspection/guard/query_guard'
 
 module WildRailsSafeIntrospection
   class Error < StandardError; end

@@ -5,6 +5,9 @@ require 'yaml'
 module WildRailsSafeIntrospection
   class Configuration
     CONSTANT_NAME_PATTERN = /\A[A-Z][A-Za-z0-9]*(::[A-Z][A-Za-z0-9]*)*\z/
+    HARD_ROW_CEILING = 1000
+    HARD_TIMEOUT_CEILING_MS = 30_000
+    MINIMUM_TIMEOUT_MS = 100
 
     attr_accessor :access_policy_path, :blocked_resources_path
     attr_reader :defaults, :model_registry, :blocked_models, :blocked_columns
@@ -22,6 +25,7 @@ module WildRailsSafeIntrospection
       validate_paths!
       load_access_policy!
       load_blocked_resources!
+      clamp_hard_ceilings!
       build_model_registry!
       freeze_policy_data!
     end
@@ -38,14 +42,20 @@ module WildRailsSafeIntrospection
       @model_registry[name]
     end
 
+    def blocked_columns_for(model_name)
+      applicable = @blocked_columns.select { |entry| [model_name, '*'].include?(entry['model']) }
+      applicable.flat_map { |entry| entry['columns'] || [] }.uniq
+    end
+
     private
 
     def validate_paths!
       raise ConfigError, 'access_policy_path is required' unless @access_policy_path
       raise ConfigError, 'blocked_resources_path is required' unless @blocked_resources_path
 
-      validate_file_exists!(@access_policy_path, 'access_policy')
-      validate_file_exists!(@blocked_resources_path, 'blocked_resources')
+      [[@access_policy_path, 'access_policy'], [@blocked_resources_path, 'blocked_resources']].each do |path, label|
+        raise ConfigError, "#{label} not found: #{path}" unless File.exist?(path)
+      end
     end
 
     def load_access_policy!
@@ -64,35 +74,33 @@ module WildRailsSafeIntrospection
       @blocked_columns = (data['blocked_columns'] || []).freeze
     end
 
+    def clamp_hard_ceilings!
+      @defaults['max_rows'] = @defaults['max_rows'].clamp(1, HARD_ROW_CEILING)
+      @defaults['query_timeout_ms'] = @defaults['query_timeout_ms'].clamp(MINIMUM_TIMEOUT_MS, HARD_TIMEOUT_CEILING_MS)
+    end
+
     def build_model_registry!
       @model_registry = {}
-      @allowed_models_config.each do |model_entry|
-        register_model(model_entry)
+      @allowed_models_config.each do |entry|
+        name = entry['name']
+        next if @blocked_models.include?(name)
+
+        klass = safe_resolve_constant(name)
+        @model_registry[name] = build_model_entry(klass, entry) if klass
       end
     end
 
-    def register_model(model_entry)
-      name = model_entry['name']
-      return if @blocked_models.include?(name)
-
-      klass = safe_resolve_constant(name)
-      return unless klass
-
-      @model_registry[name] = build_model_entry(klass, model_entry)
-    end
-
     def build_model_entry(klass, model_entry)
+      max_rows = model_entry['max_rows'] || @defaults['max_rows']
+      timeout_ms = model_entry['query_timeout_ms'] || @defaults['query_timeout_ms']
+
       {
         klass: klass,
         columns_mode: resolve_columns_mode(model_entry['columns']),
         explicit_columns: resolve_explicit_columns(model_entry['columns']),
-        max_rows: model_entry['max_rows'] || @defaults['max_rows'],
-        query_timeout_ms: model_entry['query_timeout_ms'] || @defaults['query_timeout_ms']
+        max_rows: max_rows.clamp(1, HARD_ROW_CEILING),
+        query_timeout_ms: timeout_ms.clamp(MINIMUM_TIMEOUT_MS, HARD_TIMEOUT_CEILING_MS)
       }
-    end
-
-    def validate_file_exists!(path, label)
-      raise ConfigError, "#{label} not found: #{path}" unless File.exist?(path)
     end
 
     def safe_resolve_constant(name)
