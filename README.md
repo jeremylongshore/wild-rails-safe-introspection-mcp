@@ -4,7 +4,7 @@ A governed MCP server that gives AI agents read-only access to Rails application
 
 ## Status
 
-**v1 complete** — Epics 1–9 finished. Three tools shipped with full safety controls.
+**v1 complete** — All 10 epics finished. Three tools shipped with full safety controls. 20 canonical docs filed.
 
 ## Tools
 
