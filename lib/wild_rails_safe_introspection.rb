@@ -6,12 +6,16 @@ require_relative 'wild_rails_safe_introspection/adapter/write_prevention'
 require_relative 'wild_rails_safe_introspection/adapter/model_resolver'
 require_relative 'wild_rails_safe_introspection/adapter/model_reflector'
 require_relative 'wild_rails_safe_introspection/adapter/schema_inspector'
+require_relative 'wild_rails_safe_introspection/adapter/connection_manager'
+require_relative 'wild_rails_safe_introspection/adapter/record_lookup'
+require_relative 'wild_rails_safe_introspection/adapter/filtered_lookup'
 
 module WildRailsSafeIntrospection
   class Error < StandardError; end
   class ConfigError < Error; end
   class ModelNotAllowedError < Error; end
   class WriteAttemptError < Error; end
+  class QueryTimeoutError < Error; end
 
   class << self
     def configure
