@@ -35,7 +35,7 @@ jobs:
           gcp_location: ${{ vars.GOOGLE_CLOUD_LOCATION }}
           use_vertex_ai: ${{ vars.GOOGLE_GENAI_USE_VERTEXAI }}
           gemini_model: gemini-2.5-pro
-          settings_json: |
+          settings: |
             {
               "tools": {
                 "includeTools": [
