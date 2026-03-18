@@ -68,8 +68,12 @@ These are non-negotiable when working in this repo:
 
 | Doc | Purpose |
 |-----|---------|
-| `000-docs/001-PP-PLAN-repo-blueprint.md` | Mission, boundaries, architecture direction, safety model |
+| `000-docs/001-PP-PLAN-repo-blueprint.md` | Mission, boundaries, architecture direction |
 | `000-docs/002-PP-PLAN-epic-build-plan.md` | 10-epic build plan with sequencing and dependencies |
+| `000-docs/003-TQ-STND-safety-model.md` | Governing safety specification — read-only enforcement, allowlist/denylist, caps, timeouts |
+| `000-docs/004-TQ-STND-blocked-resource-policy.md` | Policy file format spec — allowlist YAML, denylist YAML, precedence, validation |
+| `000-docs/005-AT-ADEC-threat-model.md` | 7 threats with mitigations and verification requirements |
+| `000-docs/006-AT-ADEC-safety-architecture-decisions.md` | 7 safety-driven architecture decisions with rationale |
 
 ## Task Tracking
 
@@ -79,7 +83,7 @@ Uses **Beads** (`bd`). All execution tracked repo-locally.
 bd ready                # Find unblocked work
 bd update <id> --claim  # Claim a task
 bd close <id> --reason "evidence"  # Close with evidence
-bd sync                 # Sync state
+bd list                 # View all tasks
 ```
 
 ## Before Working Here
