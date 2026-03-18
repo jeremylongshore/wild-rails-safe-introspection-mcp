@@ -20,6 +20,7 @@ RSpec.configure do |config|
 
   config.before do
     WildRailsSafeIntrospection.reset!
+    WildRailsSafeIntrospection::Adapter::ConnectionManager.reset!
   end
 
   config.expect_with :rspec do |expectations|

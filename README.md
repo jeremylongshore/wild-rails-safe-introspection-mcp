@@ -27,6 +27,17 @@ See `../CLAUDE.md` for ecosystem-level context.
 - Safety model: `000-docs/003-TQ-STND-safety-model.md`
 - Task tracking: Beads (repo-local, run `bd list` to see current state)
 
+## Development
+
+```bash
+bundle install              # Install dependencies
+bundle exec rspec           # Run test suite (100+ tests)
+bundle exec rubocop         # Lint
+bundle exec rake            # Default: runs rspec
+```
+
+CI runs rspec + rubocop on every push and pull request to `main` via GitHub Actions.
+
 ## License
 
 Intent Solutions Proprietary
