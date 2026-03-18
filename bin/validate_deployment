@@ -1,0 +1,129 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Deployment validation script for wild-rails-safe-introspection-mcp.
+# Configures the server with test fixtures, invokes all 3 tools, and verifies
+# safety controls are working correctly.
+#
+# Usage: bundle exec ruby bin/validate_deployment
+# Exit 0 on success, 1 on failure.
+
+require 'active_record'
+
+# Set up in-memory database
+ActiveRecord::Base.establish_connection(adapter: 'sqlite3', database: ':memory:')
+ActiveRecord::Schema.verbose = false
+
+require_relative '../spec/support/test_schema'
+require_relative '../spec/support/test_models'
+require_relative '../lib/wild_rails_safe_introspection'
+
+module DeploymentValidator
+  PASS = "\u2713"
+  FAIL = "\u2717"
+  TEST_API_KEY = 'sk-validation-key'
+
+  module Setup
+    def self.configure!
+      fixtures = File.expand_path('../spec/fixtures', __dir__)
+      WildRailsSafeIntrospection.configure do |config|
+        config.access_policy_path = File.join(fixtures, 'access_policy.yml')
+        config.blocked_resources_path = File.join(fixtures, 'blocked_resources.yml')
+        config.api_keys = [{ name: 'validator', key: TEST_API_KEY }]
+      end
+    end
+
+    def self.seed_data!
+      Account.create!(name: 'Acme Corp', slug: 'acme', plan: 'pro')
+      account = Account.first
+      User.create!(account: account, email: 'alice@example.com', name: 'Alice', status: 'active',
+                   password_digest: 'hashed', otp_secret: 'secret123')
+      User.create!(account: account, email: 'bob@example.com', name: 'Bob', status: 'active')
+      User.create!(account: account, email: 'carol@example.com', name: 'Carol', status: 'inactive')
+    end
+  end
+
+  module Checks
+    def self.auth_context
+      WildRailsSafeIntrospection::Identity::RequestContext.new(
+        caller_id: 'validator', caller_type: 'api_key', auth_result: :success
+      )
+    end
+
+    def self.schema_inspection
+      result = guard.inspect_schema('Account', request_context: auth_context)
+      ok = result[:status] == :ok && result[:columns].is_a?(Array) && !result[:columns].empty?
+      ['Schema inspection returns columns for allowed model', ok]
+    end
+
+    def self.blocked_columns_stripped
+      result = guard.inspect_schema('Account', request_context: auth_context)
+      column_names = result[:columns].map { |c| c[:name] }
+      blocked = %w[stripe_customer_id tax_id ssn]
+      ok = !blocked.intersect?(column_names)
+      ["Blocked columns absent from schema (checked: #{blocked.join(', ')})", ok]
+    end
+
+    def self.record_lookup
+      result = guard.find_by_id('User', User.first.id, request_context: auth_context)
+      ok = result[:status] == :ok && result[:record].is_a?(Hash)
+      if ok
+        sensitive = %w[password_digest otp_secret ssn credit_card_number]
+        ok = !sensitive.intersect?(result[:record].keys.map(&:to_s))
+      end
+      ['Record lookup returns data with blocked columns stripped', ok]
+    end
+
+    def self.filter_query
+      result = guard.find_by_filter('User', field: 'status', value: 'active', request_context: auth_context)
+      ok = result[:status] == :ok && result[:records].is_a?(Array) && result[:records].length == 2
+      ['Filter query returns matching records (2 active users)', ok]
+    end
+
+    def self.truncation_flag
+      result = guard.find_by_filter('User', field: 'status', value: 'active', request_context: auth_context)
+      ok = result[:status] == :ok && result[:truncated] == false
+      ['Truncation flag is false when under row cap', ok]
+    end
+
+    def self.denied_model
+      result = guard.inspect_schema('CreditCard', request_context: auth_context)
+      ['Blocked model (CreditCard) is denied', result[:status] == :denied]
+    end
+
+    def self.auth_rejection
+      anon = WildRailsSafeIntrospection::Identity::RequestContext.anonymous
+      result = guard.inspect_schema('Account', request_context: anon)
+      ['Anonymous request is rejected', result[:status] == :denied && result[:reason] == :auth_required]
+    end
+
+    def self.guard
+      WildRailsSafeIntrospection::Guard::QueryGuard
+    end
+    private_class_method :guard
+  end
+
+  CHECKS = %i[schema_inspection blocked_columns_stripped record_lookup filter_query
+              truncation_flag denied_model auth_rejection].freeze
+
+  def self.run
+    puts 'wild-rails-safe-introspection deployment validation'
+    puts "#{'=' * 55}\n\n"
+    Setup.configure!
+    Setup.seed_data!
+
+    results = CHECKS.map { |name| report(*Checks.public_send(name)) }
+    puts "\n#{results.count(true)} passed, #{results.count(false)} failed"
+    exit(results.all? ? 0 : 1)
+  end
+
+  def self.report(description, passed)
+    icon = passed ? PASS : FAIL
+    status = passed ? 'PASS' : 'FAIL'
+    puts "  #{icon} #{status}: #{description}"
+    passed
+  end
+  private_class_method :report
+end
+
+DeploymentValidator.run
