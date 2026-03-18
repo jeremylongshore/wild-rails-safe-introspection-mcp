@@ -3,6 +3,8 @@
 RSpec.describe WildRailsSafeIntrospection::Guard::QueryGuard do
   include TestConfigHelper
 
+  let(:ctx) { authenticated_context }
+
   let(:account) do
     Account.create!(
       name: 'Acme Corp', slug: 'acme', plan: 'pro',
@@ -33,7 +35,7 @@ RSpec.describe WildRailsSafeIntrospection::Guard::QueryGuard do
   describe '.inspect_schema' do
     context 'for an allowed model' do
       it 'returns only accessible columns in the schema' do
-        result = described_class.inspect_schema('Account')
+        result = described_class.inspect_schema('Account', request_context: ctx)
 
         expect(result[:status]).to eq(:ok)
         col_names = result[:columns].map { |c| c[:name] }
@@ -42,14 +44,14 @@ RSpec.describe WildRailsSafeIntrospection::Guard::QueryGuard do
       end
 
       it 'preserves column metadata for accessible columns' do
-        result = described_class.inspect_schema('Account')
+        result = described_class.inspect_schema('Account', request_context: ctx)
 
         id_col = result[:columns].find { |c| c[:name] == 'id' }
         expect(id_col).to include(type: :integer)
       end
 
       it 'preserves associations in the schema' do
-        result = described_class.inspect_schema('Account')
+        result = described_class.inspect_schema('Account', request_context: ctx)
 
         expect(result[:associations]).to be_an(Array)
       end
@@ -57,7 +59,7 @@ RSpec.describe WildRailsSafeIntrospection::Guard::QueryGuard do
 
     context 'for a blocked model' do
       it 'returns denial' do
-        result = described_class.inspect_schema('CreditCard')
+        result = described_class.inspect_schema('CreditCard', request_context: ctx)
 
         expect(result[:status]).to eq(:denied)
         expect(result[:reason]).to eq(:model_not_allowed)
@@ -66,8 +68,8 @@ RSpec.describe WildRailsSafeIntrospection::Guard::QueryGuard do
 
     context 'for an unknown model' do
       it 'returns the same denial as a blocked model' do
-        blocked = described_class.inspect_schema('CreditCard')
-        unknown = described_class.inspect_schema('FakeModel')
+        blocked = described_class.inspect_schema('CreditCard', request_context: ctx)
+        unknown = described_class.inspect_schema('FakeModel', request_context: ctx)
 
         expect(blocked).to eq(unknown)
       end
@@ -77,26 +79,26 @@ RSpec.describe WildRailsSafeIntrospection::Guard::QueryGuard do
   describe '.find_by_id' do
     context 'for an allowed model' do
       it 'returns record with only accessible columns' do
-        result = described_class.find_by_id('Account', account.id)
+        result = described_class.find_by_id('Account', account.id, request_context: ctx)
 
         expect(result[:status]).to eq(:ok)
         expect(result[:record]).to include('id', 'name', 'slug', 'plan')
       end
 
       it 'silently strips blocked columns from the record' do
-        result = described_class.find_by_id('Account', account.id)
+        result = described_class.find_by_id('Account', account.id, request_context: ctx)
 
         expect(result[:record].keys).not_to include('stripe_customer_id', 'tax_id', 'ssn')
       end
 
       it 'does not include any marker that columns were removed' do
-        result = described_class.find_by_id('Account', account.id)
+        result = described_class.find_by_id('Account', account.id, request_context: ctx)
 
         expect(result.keys).to eq(%i[status record])
       end
 
       it 'strips blocked column values completely' do
-        result = described_class.find_by_id('Account', account.id)
+        result = described_class.find_by_id('Account', account.id, request_context: ctx)
 
         expect(result[:record].values).not_to include('cus_secret123', 'tax_secret456', '999-99-9999')
       end
@@ -104,22 +106,24 @@ RSpec.describe WildRailsSafeIntrospection::Guard::QueryGuard do
 
     context 'for User with explicit columns' do
       it 'returns only the explicitly allowed columns' do
-        result = described_class.find_by_id('User', user.id)
+        result = described_class.find_by_id('User', user.id, request_context: ctx)
 
         expect(result[:status]).to eq(:ok)
         expect(result[:record].keys.sort).to eq(%w[created_at email id name status updated_at])
       end
 
       it 'does not include sensitive columns' do
-        result = described_class.find_by_id('User', user.id)
+        result = described_class.find_by_id('User', user.id, request_context: ctx)
 
-        expect(result[:record].keys).not_to include('password_digest', 'otp_secret', 'credit_card_number', 'account_id')
+        expect(result[:record].keys).not_to include(
+          'password_digest', 'otp_secret', 'credit_card_number', 'account_id'
+        )
       end
     end
 
     context 'for a nonexistent record' do
       it 'returns not_found' do
-        result = described_class.find_by_id('Account', 99_999)
+        result = described_class.find_by_id('Account', 99_999, request_context: ctx)
 
         expect(result[:status]).to eq(:not_found)
       end
@@ -127,7 +131,7 @@ RSpec.describe WildRailsSafeIntrospection::Guard::QueryGuard do
 
     context 'for a blocked model' do
       it 'returns denial' do
-        result = described_class.find_by_id('CreditCard', 1)
+        result = described_class.find_by_id('CreditCard', 1, request_context: ctx)
 
         expect(result[:status]).to eq(:denied)
         expect(result[:reason]).to eq(:model_not_allowed)
@@ -135,7 +139,7 @@ RSpec.describe WildRailsSafeIntrospection::Guard::QueryGuard do
     end
 
     it 'does not reveal model names in denial messages' do
-      result = described_class.find_by_id('CreditCard', 1)
+      result = described_class.find_by_id('CreditCard', 1, request_context: ctx)
 
       expect(result[:message]).not_to include('CreditCard')
     end
@@ -144,7 +148,7 @@ RSpec.describe WildRailsSafeIntrospection::Guard::QueryGuard do
   describe '.find_by_filter' do
     context 'with an accessible filter field' do
       it 'returns filtered records with only accessible columns' do
-        result = described_class.find_by_filter('Account', field: 'slug', value: 'acme')
+        result = described_class.find_by_filter('Account', field: 'slug', value: 'acme', request_context: ctx)
 
         expect(result[:status]).to eq(:ok)
         expect(result[:records].size).to eq(1)
@@ -152,7 +156,7 @@ RSpec.describe WildRailsSafeIntrospection::Guard::QueryGuard do
       end
 
       it 'strips blocked columns from filtered results' do
-        result = described_class.find_by_filter('Account', field: 'slug', value: 'acme')
+        result = described_class.find_by_filter('Account', field: 'slug', value: 'acme', request_context: ctx)
 
         result[:records].each do |record|
           expect(record.keys).not_to include('stripe_customer_id', 'tax_id', 'ssn')
@@ -162,14 +166,18 @@ RSpec.describe WildRailsSafeIntrospection::Guard::QueryGuard do
 
     context 'when filter field is a blocked column' do
       it 'returns denial to prevent information leakage' do
-        result = described_class.find_by_filter('Account', field: 'stripe_customer_id', value: 'cus_secret123')
+        result = described_class.find_by_filter(
+          'Account', field: 'stripe_customer_id', value: 'cus_secret123', request_context: ctx
+        )
 
         expect(result[:status]).to eq(:denied)
         expect(result[:reason]).to eq(:model_not_allowed)
       end
 
       it 'denies wildcard-blocked columns as filter fields' do
-        result = described_class.find_by_filter('Account', field: 'ssn', value: '999-99-9999')
+        result = described_class.find_by_filter(
+          'Account', field: 'ssn', value: '999-99-9999', request_context: ctx
+        )
 
         expect(result[:status]).to eq(:denied)
       end
@@ -177,8 +185,12 @@ RSpec.describe WildRailsSafeIntrospection::Guard::QueryGuard do
 
     context 'when filter field does not exist' do
       it 'returns denial identical to blocked column denial' do
-        blocked_field = described_class.find_by_filter('Account', field: 'stripe_customer_id', value: 'x')
-        nonexistent_field = described_class.find_by_filter('Account', field: 'nonexistent_column', value: 'x')
+        blocked_field = described_class.find_by_filter(
+          'Account', field: 'stripe_customer_id', value: 'x', request_context: ctx
+        )
+        nonexistent_field = described_class.find_by_filter(
+          'Account', field: 'nonexistent_column', value: 'x', request_context: ctx
+        )
 
         expect(blocked_field).to eq(nonexistent_field)
       end
@@ -186,14 +198,16 @@ RSpec.describe WildRailsSafeIntrospection::Guard::QueryGuard do
 
     context 'for User with explicit columns' do
       it 'allows filtering on an explicitly listed column' do
-        result = described_class.find_by_filter('User', field: 'status', value: 'active')
+        result = described_class.find_by_filter('User', field: 'status', value: 'active', request_context: ctx)
 
         expect(result[:status]).to eq(:ok)
         expect(result[:records].first.keys.sort).to eq(%w[created_at email id name status updated_at])
       end
 
       it 'denies filtering on a column not in the explicit list' do
-        result = described_class.find_by_filter('User', field: 'account_id', value: account.id)
+        result = described_class.find_by_filter(
+          'User', field: 'account_id', value: account.id, request_context: ctx
+        )
 
         expect(result[:status]).to eq(:denied)
       end
@@ -201,21 +215,68 @@ RSpec.describe WildRailsSafeIntrospection::Guard::QueryGuard do
 
     context 'for a blocked model' do
       it 'returns denial' do
-        result = described_class.find_by_filter('CreditCard', field: 'number', value: '1234')
+        result = described_class.find_by_filter(
+          'CreditCard', field: 'number', value: '1234', request_context: ctx
+        )
 
         expect(result[:status]).to eq(:denied)
       end
     end
 
     it 'denial responses are uniform across all failure modes' do
-      blocked_model = described_class.find_by_filter('CreditCard', field: 'number', value: 'x')
-      unknown_model = described_class.find_by_filter('FakeModel', field: 'id', value: '1')
-      blocked_field = described_class.find_by_filter('Account', field: 'stripe_customer_id', value: 'x')
-      nonexistent_field = described_class.find_by_filter('Account', field: 'no_such_col', value: 'x')
+      blocked_model = described_class.find_by_filter(
+        'CreditCard', field: 'number', value: 'x', request_context: ctx
+      )
+      unknown_model = described_class.find_by_filter(
+        'FakeModel', field: 'id', value: '1', request_context: ctx
+      )
+      blocked_field = described_class.find_by_filter(
+        'Account', field: 'stripe_customer_id', value: 'x', request_context: ctx
+      )
+      nonexistent_field = described_class.find_by_filter(
+        'Account', field: 'no_such_col', value: 'x', request_context: ctx
+      )
 
       expect(blocked_model).to eq(unknown_model)
       expect(blocked_model).to eq(blocked_field)
       expect(blocked_model).to eq(nonexistent_field)
+    end
+  end
+
+  describe 'authentication enforcement' do
+    let(:anon_ctx) { anonymous_context }
+
+    it 'rejects anonymous inspect_schema' do
+      result = described_class.inspect_schema('Account', request_context: anon_ctx)
+
+      expect(result[:status]).to eq(:denied)
+      expect(result[:reason]).to eq(:auth_required)
+    end
+
+    it 'rejects anonymous find_by_id' do
+      result = described_class.find_by_id('Account', account.id, request_context: anon_ctx)
+
+      expect(result[:status]).to eq(:denied)
+      expect(result[:reason]).to eq(:auth_required)
+    end
+
+    it 'rejects anonymous find_by_filter' do
+      result = described_class.find_by_filter(
+        'Account', field: 'slug', value: 'acme', request_context: anon_ctx
+      )
+
+      expect(result[:status]).to eq(:denied)
+      expect(result[:reason]).to eq(:auth_required)
+    end
+
+    it 'auth denial does not reveal model existence' do
+      allowed = described_class.inspect_schema('Account', request_context: anon_ctx)
+      blocked = described_class.inspect_schema('CreditCard', request_context: anon_ctx)
+      unknown = described_class.inspect_schema('FakeModel', request_context: anon_ctx)
+
+      expect(allowed[:reason]).to eq(:auth_required)
+      expect(blocked[:reason]).to eq(:auth_required)
+      expect(unknown[:reason]).to eq(:auth_required)
     end
   end
 
@@ -248,14 +309,14 @@ RSpec.describe WildRailsSafeIntrospection::Guard::QueryGuard do
 
   describe 'safety invariants' do
     it 'blocked columns never appear in find_by_id responses' do
-      result = described_class.find_by_id('Account', account.id)
+      result = described_class.find_by_id('Account', account.id, request_context: ctx)
 
       blocked = WildRailsSafeIntrospection.configuration.blocked_columns_for('Account')
       expect(result[:record].keys & blocked).to be_empty
     end
 
     it 'blocked columns never appear in find_by_filter responses' do
-      result = described_class.find_by_filter('Account', field: 'slug', value: 'acme')
+      result = described_class.find_by_filter('Account', field: 'slug', value: 'acme', request_context: ctx)
 
       blocked = WildRailsSafeIntrospection.configuration.blocked_columns_for('Account')
       result[:records].each do |record|
@@ -264,7 +325,7 @@ RSpec.describe WildRailsSafeIntrospection::Guard::QueryGuard do
     end
 
     it 'blocked columns never appear in inspect_schema responses' do
-      result = described_class.inspect_schema('Account')
+      result = described_class.inspect_schema('Account', request_context: ctx)
 
       blocked = WildRailsSafeIntrospection.configuration.blocked_columns_for('Account')
       col_names = result[:columns].map { |c| c[:name] }

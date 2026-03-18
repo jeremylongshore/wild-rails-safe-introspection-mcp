@@ -8,7 +8,7 @@ This file provides guidance to Claude Code when working in this repository.
 - **Ecosystem:** wild (see `../CLAUDE.md` for ecosystem-level rules)
 - **Mission:** Safe, governed, read-only Rails production introspection for AI agents via MCP
 - **Language:** Ruby
-- **Status:** Active development — Epic 4 (Query Guard) complete, ready for Epic 5
+- **Status:** Active development — Epic 6 (Identity & Auth) in progress, Epics 1-5 complete
 
 ## What This Repo Does
 

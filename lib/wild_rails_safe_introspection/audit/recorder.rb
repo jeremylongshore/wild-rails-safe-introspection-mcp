@@ -3,12 +3,12 @@
 module WildRailsSafeIntrospection
   module Audit
     module Recorder
-      def self.record(tool_name:, model_name:, parameters:)
+      def self.record(tool_name:, model_name:, parameters:, request_context:)
         start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         result = yield
         duration_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000).round
 
-        emit_audit_record(tool_name, model_name, parameters, result, duration_ms)
+        emit_audit_record(tool_name, model_name, parameters, result, duration_ms, request_context)
         result
       end
 
@@ -23,8 +23,10 @@ module WildRailsSafeIntrospection
       end
       private_class_method :build_audit_attrs
 
-      def self.emit_audit_record(tool_name, model_name, parameters, result, duration_ms)
+      def self.emit_audit_record(tool_name, model_name, parameters, result, duration_ms, ctx) # rubocop:disable Metrics/ParameterLists
         attrs = build_audit_attrs(tool_name, model_name, parameters, result, duration_ms)
+        attrs[:caller_id] = ctx.caller_id
+        attrs[:caller_type] = ctx.caller_type
         AuditLogger.log(AuditRecord.new(**attrs))
       end
       private_class_method :emit_audit_record
