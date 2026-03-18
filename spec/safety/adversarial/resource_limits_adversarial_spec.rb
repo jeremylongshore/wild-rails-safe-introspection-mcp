@@ -210,4 +210,159 @@ RSpec.describe 'Resource Limits Adversarial', :adversarial, :safety do
       expect(parsed[:records]).to be_empty
     end
   end
+
+  # -------------------------------------------------------------------
+  # Precise boundary cap enforcement — bz3.5
+  # -------------------------------------------------------------------
+  describe 'precise boundary cap enforcement' do
+    it 'returns exactly 100 records with truncated true when 101 exist' do
+      101.times do |i|
+        Account.create!(name: "Corp #{i}", slug: "corp-#{i}", plan: 'free',
+                        stripe_customer_id: "cus_#{i}", tax_id: "tax_#{i}", ssn: "000-00-#{i.to_s.rjust(4, '0')}")
+      end
+
+      response = tool_filter.call(
+        model_name: 'Account', field: 'plan', value: 'free', server_context: ctx
+      )
+      parsed = parse_response(response)
+
+      expect(parsed[:status]).to eq('ok')
+      expect(parsed[:records].size).to eq(100)
+      expect(parsed[:truncated]).to be(true)
+    end
+
+    it 'returns exactly 100 records with truncated false when exactly 100 exist' do
+      100.times do |i|
+        Account.create!(name: "Corp #{i}", slug: "corp-#{i}", plan: 'free',
+                        stripe_customer_id: "cus_#{i}", tax_id: "tax_#{i}", ssn: "000-00-#{i.to_s.rjust(4, '0')}")
+      end
+
+      response = tool_filter.call(
+        model_name: 'Account', field: 'plan', value: 'free', server_context: ctx
+      )
+      parsed = parse_response(response)
+
+      expect(parsed[:status]).to eq('ok')
+      expect(parsed[:records].size).to eq(100)
+      expect(parsed[:truncated]).to be(false)
+    end
+  end
+
+  # -------------------------------------------------------------------
+  # Sequential independent cap enforcement — bz3.5
+  # -------------------------------------------------------------------
+  describe 'sequential independent cap enforcement' do
+    it 'each independent call is capped independently and DB count unchanged' do
+      150.times do |i|
+        Account.create!(name: "Corp #{i}", slug: "corp-#{i}", plan: 'free',
+                        stripe_customer_id: "cus_#{i}", tax_id: "tax_#{i}", ssn: "000-00-#{i.to_s.rjust(4, '0')}")
+      end
+
+      3.times do
+        response = tool_filter.call(
+          model_name: 'Account', field: 'plan', value: 'free', server_context: ctx
+        )
+        parsed = parse_response(response)
+
+        expect(parsed[:records].size).to eq(100)
+        expect(parsed[:truncated]).to be(true)
+      end
+
+      expect(Account.where(plan: 'free').count).to eq(150)
+    end
+  end
+
+  # -------------------------------------------------------------------
+  # Timeout produces zero partial results — bz3.5
+  # -------------------------------------------------------------------
+  describe 'timeout produces zero partial results' do
+    let(:audit_records) { [] }
+
+    before do
+      allow(WildRailsSafeIntrospection::Audit::AuditLogger).to receive(:log) do |record|
+        audit_records << record
+      end
+    end
+
+    it 'timeout on filter returns no records key in parsed response' do
+      allow(Timeout).to receive(:timeout).and_raise(
+        WildRailsSafeIntrospection::QueryTimeoutError, 'Query timed out'
+      )
+
+      response = tool_filter.call(
+        model_name: 'Account', field: 'name', value: 'x', server_context: ctx
+      )
+      parsed = parse_response(response)
+
+      expect(parsed[:status]).to eq('error')
+      expect(parsed[:reason]).to eq('query_timeout')
+      expect(parsed).not_to have_key(:records)
+    end
+
+    it 'timeout on lookup returns no record key in parsed response' do
+      Account.create!(name: 'Test', slug: 'test', plan: 'free',
+                      stripe_customer_id: 'cus_0', tax_id: 'tax_0', ssn: '000-00-0000')
+      allow(Timeout).to receive(:timeout).and_raise(
+        WildRailsSafeIntrospection::QueryTimeoutError, 'Query timed out'
+      )
+
+      response = tool_lookup.call(
+        model_name: 'Account', id: Account.first.id.to_s, server_context: ctx
+      )
+      parsed = parse_response(response)
+
+      expect(parsed[:status]).to eq('error')
+      expect(parsed[:reason]).to eq('query_timeout')
+      expect(parsed).not_to have_key(:record)
+    end
+
+    it 'timeout audit record has rows_returned of zero' do
+      allow(Timeout).to receive(:timeout).and_raise(
+        WildRailsSafeIntrospection::QueryTimeoutError, 'Query timed out'
+      )
+
+      tool_filter.call(
+        model_name: 'Account', field: 'name', value: 'x', server_context: ctx
+      )
+
+      expect(audit_records.last.rows_returned).to eq(0)
+    end
+  end
+
+  # -------------------------------------------------------------------
+  # Timeout wrapper verification — bz3.5
+  # -------------------------------------------------------------------
+  describe 'timeout wrapper verification' do
+    it 'Timeout.timeout is called with correct timeout value for Account' do
+      Account.create!(name: 'Test', slug: 'test', plan: 'free',
+                      stripe_customer_id: 'cus_0', tax_id: 'tax_0', ssn: '000-00-0000')
+
+      allow(Timeout).to receive(:timeout).and_call_original
+
+      tool_filter.call(
+        model_name: 'Account', field: 'plan', value: 'free', server_context: ctx
+      )
+
+      # Account timeout_ms is 5000, so timeout_s = 5.0
+      expect(Timeout).to have_received(:timeout).with(5.0, WildRailsSafeIntrospection::QueryTimeoutError)
+    end
+
+    it 'large result set still exercises timeout wrapper' do
+      500.times do |i|
+        Account.create!(name: "Corp #{i}", slug: "corp-#{i}", plan: 'free',
+                        stripe_customer_id: "cus_#{i}", tax_id: "tax_#{i}", ssn: "000-00-#{i.to_s.rjust(4, '0')}")
+      end
+
+      allow(Timeout).to receive(:timeout).and_call_original
+
+      response = tool_filter.call(
+        model_name: 'Account', field: 'plan', value: 'free', server_context: ctx
+      )
+      parsed = parse_response(response)
+
+      expect(Timeout).to have_received(:timeout).with(5.0, WildRailsSafeIntrospection::QueryTimeoutError)
+      expect(parsed[:records].size).to eq(100)
+      expect(parsed[:truncated]).to be(true)
+    end
+  end
 end

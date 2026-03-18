@@ -188,4 +188,223 @@ RSpec.describe 'Access Control Adversarial', :adversarial, :safety do
       expect { config.defaults['max_rows'] = 999_999 }.to raise_error(FrozenError)
     end
   end
+
+  # -------------------------------------------------------------------
+  # Table name instead of class name bypass attempts — bz3.3
+  # -------------------------------------------------------------------
+  describe 'table name instead of class name bypass attempts' do
+    %w[accounts users feature_flags].each do |table_name|
+      it "denies table name #{table_name.inspect}" do
+        response = tool_schema.call(model_name: table_name, server_context: ctx)
+        parsed = parse_response(response)
+
+        expect(response.error?).to be(true)
+        expect(parsed[:status]).to eq('denied')
+      end
+    end
+  end
+
+  # -------------------------------------------------------------------
+  # SQL fragments in model_name — bz3.3
+  # -------------------------------------------------------------------
+  describe 'SQL fragments in model_name' do
+    [
+      'User; DELETE FROM users',
+      "Account' OR 1=1",
+      "User\nDROP TABLE users",
+      "User\tDROP",
+      'User-- comment'
+    ].each do |payload|
+      it "denies SQL fragment #{payload.inspect}" do
+        response = tool_schema.call(model_name: payload, server_context: ctx)
+        parsed = parse_response(response)
+
+        expect(response.error?).to be(true)
+        expect(parsed[:status]).to eq('denied')
+      end
+    end
+  end
+
+  # -------------------------------------------------------------------
+  # Model name enumeration resistance — bz3.3
+  # -------------------------------------------------------------------
+  describe 'model name enumeration resistance' do
+    it 'all non-allowed model denials have identical response shape' do
+      common_models = %w[
+        Order Payment Invoice Subscription Role Permission Team
+        Organization Session Token Notification Comment Post
+        Category Product Cart Webhook Endpoint Integration Setting
+      ]
+
+      responses = common_models.map do |model|
+        parse_response(tool_schema.call(model_name: model, server_context: ctx))
+      end
+
+      responses.each do |resp|
+        expect(resp.keys.sort).to eq(responses.first.keys.sort)
+        expect(resp[:status]).to eq(responses.first[:status])
+        expect(resp[:reason]).to eq(responses.first[:reason])
+        expect(resp[:message]).to eq(responses.first[:message])
+      end
+    end
+
+    it 'blocked-but-exists and non-existent models produce identical denials' do
+      blocked_existing = parse_response(tool_schema.call(model_name: 'CreditCard', server_context: ctx))
+      non_existent = parse_response(tool_schema.call(model_name: 'Zzzzzzzzzz', server_context: ctx))
+
+      expect(blocked_existing.keys.sort).to eq(non_existent.keys.sort)
+      expect(blocked_existing[:status]).to eq(non_existent[:status])
+      expect(blocked_existing[:reason]).to eq(non_existent[:reason])
+      expect(blocked_existing[:message]).to eq(non_existent[:message])
+    end
+  end
+
+  # -------------------------------------------------------------------
+  # Response timing consistency — bz3.3
+  # -------------------------------------------------------------------
+  describe 'response timing consistency' do
+    it 'allowed, blocked, and unknown models respond within same order of magnitude' do
+      measure = lambda { |model|
+        times = Array.new(5) do
+          start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          tool_schema.call(model_name: model, server_context: ctx)
+          Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
+        end
+        times.sort[2] # median
+      }
+
+      allowed_time = measure.call('Account')
+      blocked_time = measure.call('CreditCard')
+      unknown_time = measure.call('Zzzzzzzzzz')
+
+      max_time = [allowed_time, blocked_time, unknown_time].max
+      min_time = [allowed_time, blocked_time, unknown_time].min
+
+      # Generous 10x tolerance for SQLite test environment
+      expect(max_time).to be < (min_time * 10)
+    end
+  end
+
+  # -------------------------------------------------------------------
+  # Table-prefixed column in field parameter — bz3.4
+  # -------------------------------------------------------------------
+  describe 'table-prefixed column in field parameter' do
+    it 'denies "accounts.stripe_customer_id"' do
+      response = tool_filter.call(
+        model_name: 'Account', field: 'accounts.stripe_customer_id', value: 'test',
+        server_context: ctx
+      )
+      parsed = parse_response(response)
+
+      expect(response.error?).to be(true)
+      expect(parsed[:status]).to eq('denied')
+    end
+
+    it 'denies "users.password_digest"' do
+      response = tool_filter.call(
+        model_name: 'User', field: 'users.password_digest', value: 'test',
+        server_context: ctx
+      )
+      parsed = parse_response(response)
+
+      expect(response.error?).to be(true)
+      expect(parsed[:status]).to eq('denied')
+    end
+  end
+
+  # -------------------------------------------------------------------
+  # Column-like field names that might confuse filtering — bz3.4
+  # -------------------------------------------------------------------
+  describe 'column-like field names that might confuse filtering' do
+    it 'denies "stripe_customer_id AS name"' do
+      response = tool_filter.call(
+        model_name: 'Account', field: 'stripe_customer_id AS name', value: 'test',
+        server_context: ctx
+      )
+      parsed = parse_response(response)
+
+      expect(response.error?).to be(true)
+      expect(parsed[:status]).to eq('denied')
+    end
+
+    it 'denies "name, stripe_customer_id"' do
+      response = tool_filter.call(
+        model_name: 'Account', field: 'name, stripe_customer_id', value: 'test',
+        server_context: ctx
+      )
+      parsed = parse_response(response)
+
+      expect(response.error?).to be(true)
+      expect(parsed[:status]).to eq('denied')
+    end
+  end
+
+  # -------------------------------------------------------------------
+  # Schema and data consistency for blocked columns — bz3.4
+  # -------------------------------------------------------------------
+  describe 'schema and data consistency for blocked columns' do
+    it 'schema omits blocked columns AND data omits them for Account' do
+      schema_resp = parse_response(tool_schema.call(model_name: 'Account', server_context: ctx))
+      schema_cols = schema_resp[:columns].map { |c| c[:name] }
+
+      account = Account.first
+      data_resp = parse_response(tool_lookup.call(model_name: 'Account', id: account.id.to_s, server_context: ctx))
+      data_cols = data_resp[:record].keys.map(&:to_s)
+
+      %w[stripe_customer_id tax_id ssn].each do |blocked|
+        expect(schema_cols).not_to include(blocked)
+        expect(data_cols).not_to include(blocked)
+      end
+    end
+
+    it 'wildcard-blocked columns stripped from ALL models' do
+      %w[Account User].each do |model_name|
+        schema_resp = parse_response(tool_schema.call(model_name: model_name, server_context: ctx))
+        schema_cols = schema_resp[:columns].map { |c| c[:name] }
+
+        %w[ssn credit_card_number].each do |blocked|
+          expect(schema_cols).not_to include(blocked),
+                                     "expected #{model_name} schema to not include #{blocked}"
+        end
+      end
+    end
+  end
+
+  # -------------------------------------------------------------------
+  # Column enumeration resistance — bz3.4
+  # -------------------------------------------------------------------
+  describe 'column enumeration resistance' do
+    it 'filter on blocked field vs non-existent field produces identical denial shape' do
+      blocked_args = { model_name: 'Account', field: 'stripe_customer_id',
+                       value: 'x', server_context: ctx }
+      fake_args = { model_name: 'Account', field: 'totally_nonexistent_column',
+                    value: 'x', server_context: ctx }
+      blocked = parse_response(tool_filter.call(**blocked_args))
+      nonexistent = parse_response(tool_filter.call(**fake_args))
+
+      expect(blocked.keys.sort).to eq(nonexistent.keys.sort)
+      expect(blocked[:status]).to eq(nonexistent[:status])
+      expect(blocked[:reason]).to eq(nonexistent[:reason])
+      expect(blocked[:message]).to eq(nonexistent[:message])
+    end
+
+    it 'blocked column name never appears in any response across all three tools' do
+      account = Account.first
+      blocked_cols = %w[stripe_customer_id tax_id]
+
+      responses_raw = [
+        tool_schema.call(model_name: 'Account', server_context: ctx).content.first[:text],
+        tool_lookup.call(model_name: 'Account', id: account.id.to_s, server_context: ctx).content.first[:text],
+        tool_filter.call(model_name: 'Account', field: 'name', value: 'Acme Corp',
+                         server_context: ctx).content.first[:text]
+      ]
+
+      responses_raw.each_with_index do |raw_json, idx|
+        blocked_cols.each do |col|
+          expect(raw_json).not_to include(col),
+                                  "expected response ##{idx} to not contain #{col}"
+        end
+      end
+    end
+  end
 end

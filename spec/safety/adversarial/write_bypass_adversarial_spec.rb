@@ -178,4 +178,194 @@ RSpec.describe 'Write Bypass Adversarial', :adversarial, :safety do
       expect(parsed[:status]).to eq('denied')
     end
   end
+
+  # -------------------------------------------------------------------
+  # DB state integrity across adversarial sequences — bz3.2
+  # -------------------------------------------------------------------
+  describe 'DB state integrity across multi-tool adversarial sequence' do
+    def snapshot_db_state
+      {
+        account_count: Account.count,
+        user_count: User.count,
+        feature_flag_count: FeatureFlag.count,
+        account_ids: Account.pluck(:id).sort,
+        user_ids: User.pluck(:id).sort,
+        account_names: Account.pluck(:name).sort
+      }
+    end
+
+    before do
+      User.create!(account: Account.first, email: 'test@example.com', name: 'Test User',
+                   password_digest: 'hashed', otp_secret: 'secret', credit_card_number: '4111')
+      FeatureFlag.create!(key: 'beta_access', enabled: true, description: 'Beta feature')
+    end
+
+    it 'database state identical before and after all three tools with destructive payloads' do
+      before_state = snapshot_db_state
+
+      # Schema tool with destructive model names
+      ['DROP TABLE users', 'DELETE FROM accounts', 'UPDATE users SET'].each do |payload|
+        tool_schema.call(model_name: payload, server_context: ctx)
+      end
+
+      # Lookup tool with destructive IDs
+      ['1; DROP TABLE users', '1; DELETE FROM accounts', '1); UPDATE users SET email='].each do |payload|
+        tool_lookup.call(model_name: 'Account', id: payload, server_context: ctx)
+      end
+
+      # Filter tool with destructive values
+      ["'; DROP TABLE users; --", "'; DELETE FROM accounts; --",
+       "'; UPDATE users SET name='pwned'; --"].each do |payload|
+        tool_filter.call(model_name: 'Account', field: 'name', value: payload, server_context: ctx)
+      end
+
+      expect(snapshot_db_state).to eq(before_state)
+    end
+
+    it 'no new records created by INSERT payloads' do
+      before_state = snapshot_db_state
+
+      ["'; INSERT INTO users (email, name) VALUES ('evil@example.com', 'Evil'); --",
+       "1; INSERT INTO accounts (name, slug) VALUES ('Evil Corp', 'evil')"].each do |payload|
+        tool_filter.call(model_name: 'Account', field: 'name', value: payload, server_context: ctx)
+        tool_lookup.call(model_name: 'Account', id: payload, server_context: ctx)
+      end
+
+      after_state = snapshot_db_state
+      expect(after_state[:account_count]).to eq(before_state[:account_count])
+      expect(after_state[:user_count]).to eq(before_state[:user_count])
+      expect(after_state[:feature_flag_count]).to eq(before_state[:feature_flag_count])
+    end
+
+    it 'no records deleted by DELETE payloads' do
+      before_state = snapshot_db_state
+
+      ["'; DELETE FROM accounts; --", "'; TRUNCATE TABLE users; --",
+       '1; DELETE FROM feature_flags WHERE 1=1'].each do |payload|
+        tool_filter.call(model_name: 'Account', field: 'name', value: payload, server_context: ctx)
+        tool_lookup.call(model_name: 'Account', id: payload, server_context: ctx)
+        tool_schema.call(model_name: payload, server_context: ctx)
+      end
+
+      after_state = snapshot_db_state
+      expect(after_state[:account_count]).to eq(before_state[:account_count])
+      expect(after_state[:user_count]).to eq(before_state[:user_count])
+      expect(after_state[:feature_flag_count]).to eq(before_state[:feature_flag_count])
+    end
+
+    it 'no records modified by UPDATE payloads' do
+      original_name = Account.first.name
+
+      ["'; UPDATE accounts SET name='pwned'; --",
+       "1; UPDATE accounts SET name='hacked' WHERE 1=1"].each do |payload|
+        tool_filter.call(model_name: 'Account', field: 'name', value: payload, server_context: ctx)
+        tool_lookup.call(model_name: 'Account', id: payload, server_context: ctx)
+      end
+
+      expect(Account.first.reload.name).to eq(original_name)
+    end
+  end
+
+  # -------------------------------------------------------------------
+  # Prompt injection via model_name with SQL fragments — bz3.6
+  # -------------------------------------------------------------------
+  describe 'prompt injection via model_name with SQL fragments' do
+    [
+      'User; DELETE FROM users',
+      "Account' OR 1=1",
+      "User\nDROP TABLE users",
+      "User\tDROP",
+      'User-- comment'
+    ].each do |payload|
+      it "denies model_name #{payload.inspect}" do
+        response = tool_schema.call(model_name: payload, server_context: ctx)
+        parsed = parse_response(response)
+
+        expect(response.error?).to be(true)
+        expect(parsed[:status]).to eq('denied')
+      end
+    end
+  end
+
+  # -------------------------------------------------------------------
+  # Prompt injection via field parameter with SQL operators — bz3.6
+  # -------------------------------------------------------------------
+  describe 'prompt injection via field parameter with SQL operators' do
+    [
+      "name = 'admin'",
+      'id > 5',
+      'name; DROP TABLE'
+    ].each do |payload|
+      it "denies field parameter #{payload.inspect}" do
+        response = tool_filter.call(
+          model_name: 'Account', field: payload, value: 'test',
+          server_context: ctx
+        )
+        parsed = parse_response(response)
+
+        expect(response.error?).to be(true)
+        expect(parsed[:status]).to eq('denied')
+      end
+    end
+  end
+
+  # -------------------------------------------------------------------
+  # Control characters in all parameter types — bz3.6
+  # -------------------------------------------------------------------
+  describe 'control characters in all parameter types' do
+    it 'denies null byte in model_name' do
+      response = tool_schema.call(model_name: "Account\x00evil", server_context: ctx)
+      parsed = parse_response(response)
+
+      expect(response.error?).to be(true)
+      expect(parsed[:status]).to eq('denied')
+    end
+
+    it 'denies null byte in field parameter' do
+      response = tool_filter.call(
+        model_name: 'Account', field: "name\x00evil", value: 'test',
+        server_context: ctx
+      )
+      parsed = parse_response(response)
+
+      expect(response.error?).to be(true)
+      expect(parsed[:status]).to eq('denied')
+    end
+
+    it 'treats null byte in value as literal with empty results' do
+      response = tool_filter.call(
+        model_name: 'Account', field: 'name', value: "Acme\x00evil",
+        server_context: ctx
+      )
+      parsed = parse_response(response)
+
+      expect(parsed[:status]).to eq('ok')
+      expect(parsed[:records]).to be_empty
+    end
+
+    it 'treats null byte in id as not_found' do
+      response = tool_lookup.call(model_name: 'Account', id: "1\x00evil", server_context: ctx)
+      parsed = parse_response(response)
+
+      expect(parsed[:status]).to eq('not_found')
+    end
+  end
+
+  # -------------------------------------------------------------------
+  # ActiveRecord method names in value parameter — bz3.6
+  # -------------------------------------------------------------------
+  describe 'ActiveRecord method names in value parameter' do
+    %w[destroy_all() .delete send(:save)].each do |payload|
+      it "treats value #{payload.inspect} as literal with empty results" do
+        response = tool_filter.call(
+          model_name: 'Account', field: 'name', value: payload,
+          server_context: ctx
+        )
+        parsed = parse_response(response)
+
+        expect(parsed[:status]).to eq('ok')
+        expect(parsed[:records]).to be_empty
+      end
+    end
+  end
 end
