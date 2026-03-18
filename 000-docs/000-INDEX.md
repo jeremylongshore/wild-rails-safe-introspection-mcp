@@ -21,6 +21,7 @@
 | 018 | 018-AT-ADEC-architecture-extension-points.md | AT — Architecture & Technical | ADEC | Architecture extension points — where and how to add tools, policies, identity providers, audit backends |
 | 019 | 019-AT-ADEC-telemetry-emission-hook-interface.md | AT — Architecture & Technical | ADEC | Telemetry emission hook interface — event types, privacy model, emitter/backend contracts, integration timeline |
 | 020 | 020-PP-PLAN-confirmed-out-of-scope.md | PP — Product & Planning | PLAN | Confirmed out-of-scope list — permanent, version-scoped, and ecosystem boundaries with scope-change process |
+| 021 | 021-RL-REPT-release-v0.1.0.md | RL — Release | REPT | Release report v0.1.0 — metrics, quality gates, artifacts, post-release checklist |
 
 ## Category Reference
 
@@ -31,6 +32,7 @@
 | TQ | Testing & Quality |
 | OD | Operations & Deployment |
 | DR | Documentation & Reference |
+| RL | Release |
 
 ## Type Reference
 
@@ -44,3 +46,4 @@
 | GUID | Workflow / operator guide |
 | OPNS | Operations / deployment guide |
 | REFF | Reference document |
+| REPT | Release report |
