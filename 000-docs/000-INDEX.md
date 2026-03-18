@@ -11,6 +11,7 @@
 | 008 | 008-AT-ADEC-identity-and-auth-model.md | AT — Architecture & Technical | ADEC | Identity and auth model — API key validation, RequestContext, anonymous rejection, constant-time comparison |
 | 009 | 009-AT-ADEC-capability-gate-interface.md | AT — Architecture & Technical | ADEC | Capability gate interface contract — stub for v1, integration plan for wild-capability-gate |
 | 010 | 010-DR-REFF-tool-catalog.md | DR — Documentation & Reference | REFF | v1 MCP tool catalog — tool names, schemas, safety classifications, response formats |
+| 011 | 011-TQ-SECU-evaluation-strategy.md | TQ — Testing & Quality | SECU | Evaluation strategy — release checklist, safety defect protocol, test suite structure, when to re-evaluate |
 
 ## Category Reference
 
@@ -30,4 +31,5 @@
 | ARCH | Architecture document |
 | ADEC | Architecture decision record |
 | STND | Standard / policy |
+| SECU | Security evaluation / protocol |
 | REFF | Reference document |
