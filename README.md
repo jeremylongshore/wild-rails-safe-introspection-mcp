@@ -1,5 +1,7 @@
 # wild-rails-safe-introspection-mcp
 
+> Part of the **[wild ecosystem](https://github.com/jeremylongshore/wild-rails-ai-ops)** — 10 Ruby gems for running AI agents inside Rails apps under capability control.
+
 A governed MCP server that gives AI agents read-only access to Rails application state — models, schema, and records — with policy enforcement, audit logging, and hard safety limits. No raw console access, no mutation, no arbitrary queries.
 
 ## Status
