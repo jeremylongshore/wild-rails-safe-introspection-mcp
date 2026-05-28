@@ -6,6 +6,7 @@ This file provides guidance to Claude Code when working in this repository.
 
 - **Repo:** `wild-rails-safe-introspection-mcp`
 - **Ecosystem:** wild (see `../CLAUDE.md` for ecosystem-level rules)
+- **Archetype:** A — Product-Facing Operational
 - **Mission:** Safe, governed, read-only Rails production introspection for AI agents via MCP
 - **Language:** Ruby
 - **Status:** v1 complete — all 10 epics finished, three MCP tools shipped with full safety controls, 20 canonical docs filed
