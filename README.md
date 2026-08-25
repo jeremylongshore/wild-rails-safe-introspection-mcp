@@ -4,6 +4,8 @@
 
 A governed MCP server that gives AI agents read-only access to Rails application state — models, schema, and records — with policy enforcement, audit logging, and hard safety limits. No raw console access, no mutation, no arbitrary queries.
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/U5S225PTME)
+
 ## Status
 
 **v1 complete** — All 10 epics finished. Three tools shipped with full safety controls. 20 canonical docs filed.
